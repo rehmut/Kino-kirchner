@@ -1,26 +1,151 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.625rem;
+  --background: #04020d;
+  --foreground: #f3eaff;
+  --card: rgba(18, 15, 35, 0.72);
+  --card-foreground: #f3eaff;
+  --popover: rgba(18, 15, 35, 0.85);
+  --popover-foreground: #f3eaff;
+  --primary: #a47bff;
+  --primary-foreground: #110b1b;
+  --secondary: rgba(36, 24, 54, 0.75);
+  --secondary-foreground: #f3eaff;
+  --muted: rgba(34, 27, 55, 0.6);
+  --muted-foreground: #cfc0f5;
+  --accent: rgba(74, 43, 109, 0.65);
+  --accent-foreground: #f7f2ff;
+  --destructive: #ff4d6d;
+  --border: rgba(164, 139, 235, 0.35);
+  --input: rgba(164, 139, 235, 0.25);
+  --ring: rgba(173, 148, 255, 0.6);
+  --chart-1: #8f6bff;
+  --chart-2: #4cc9f0;
+  --chart-3: #f72585;
+  --chart-4: #4895ef;
+  --chart-5: #b5179e;
+  --sidebar: rgba(18, 15, 35, 0.8);
+  --sidebar-foreground: #f3eaff;
+  --sidebar-primary: #a47bff;
+  --sidebar-primary-foreground: #120b1a;
+  --sidebar-accent: rgba(74, 43, 109, 0.7);
+  --sidebar-accent-foreground: #f7f2ff;
+  --sidebar-border: rgba(164, 139, 235, 0.25);
+  --sidebar-ring: rgba(173, 148, 255, 0.55);
+}
+
+
+.dark {
+  --background: #020109;
+  --foreground: #f3eaff;
+  --card: rgba(18, 15, 35, 0.72);
+  --card-foreground: #f3eaff;
+  --popover: rgba(18, 15, 35, 0.85);
+  --popover-foreground: #f3eaff;
+  --primary: #a47bff;
+  --primary-foreground: #120b1a;
+  --secondary: rgba(36, 24, 54, 0.75);
+  --secondary-foreground: #f3eaff;
+  --muted: rgba(34, 27, 55, 0.6);
+  --muted-foreground: #cfc0f5;
+  --accent: rgba(74, 43, 109, 0.65);
+  --accent-foreground: #f7f2ff;
+  --destructive: #ff4d6d;
+  --border: rgba(164, 139, 235, 0.35);
+  --input: rgba(164, 139, 235, 0.25);
+  --ring: rgba(173, 148, 255, 0.6);
+  --chart-1: #8f6bff;
+  --chart-2: #4cc9f0;
+  --chart-3: #f72585;
+  --chart-4: #4895ef;
+  --chart-5: #b5179e;
+  --sidebar: rgba(18, 15, 35, 0.82);
+  --sidebar-foreground: #f3eaff;
+  --sidebar-primary: #a47bff;
+  --sidebar-primary-foreground: #120b1a;
+  --sidebar-accent: rgba(74, 43, 109, 0.7);
+  --sidebar-accent-foreground: #f7f2ff;
+  --sidebar-border: rgba(164, 139, 235, 0.25);
+  --sidebar-ring: rgba(173, 148, 255, 0.55);
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply text-foreground;
+    min-height: 100vh;
+    position: relative;
+    background:
+      radial-gradient(circle at 6% 12%, rgba(177, 122, 255, 0.28) 0%, transparent 38%),
+      radial-gradient(circle at 92% 18%, rgba(255, 120, 189, 0.22) 0%, transparent 42%),
+      radial-gradient(circle at 18% 78%, rgba(72, 222, 255, 0.2) 0%, transparent 45%),
+      radial-gradient(circle at 82% 84%, rgba(94, 255, 201, 0.18) 0%, transparent 47%),
+      radial-gradient(circle at 52% 62%, rgba(255, 214, 112, 0.24) 0%, transparent 52%),
+      radial-gradient(circle at 46% 28%, rgba(255, 154, 139, 0.25) 0%, transparent 55%),
+      linear-gradient(120deg, #010208 0%, #050317 55%, #0a0430 100%);
+    background-attachment: fixed;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(120deg, rgba(5, 4, 12, 0.8), rgba(8, 5, 18, 0.75));
+    mix-blend-mode: overlay;
+    backdrop-filter: blur(22px) saturate(120%);
+    z-index: 0;
+  }
+  body > * {
+    position: relative;
+    z-index: 1;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+
