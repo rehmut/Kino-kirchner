@@ -13,42 +13,48 @@ const lineupItemSchema = z
       .union([z.string().cuid(), z.literal("")])
       .optional()
       .transform((value) => (value ? value : undefined)),
-    title: z.string().min(1).optional(),
-    letterboxdUrl: z.string().url().optional(),
+    title: z
+      .string()
+      .max(200)
+      .optional()
+      .transform((value) => (value?.trim() ? value.trim() : undefined)),
+    letterboxdUrl: z
+      .string()
+      .url({ message: "Provide a valid Letterboxd URL" })
+      .transform((value) => value.trim()),
     runtimeMinutes: z.coerce.number().int().min(1).max(600).optional(),
     posterImage: z.string().url().optional(),
-    director: z.string().max(120).optional(),
-    synopsis: z.string().max(2000).optional(),
-    note: z.string().max(255).optional(),
+    director: z
+      .string()
+      .max(120)
+      .optional()
+      .transform((value) => (value?.trim() ? value.trim() : undefined)),
+    synopsis: z
+      .string()
+      .max(2000)
+      .optional()
+      .transform((value) => (value?.trim() ? value.trim() : undefined)),
+    note: z
+      .string()
+      .max(255)
+      .optional()
+      .transform((value) => (value?.trim() ? value.trim() : undefined)),
     slotOrder: z.number().int().min(0).optional(),
   })
-  .superRefine((value, ctx) => {
-    if (!value.filmId) {
-      if (!value.title) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Title is required when creating a new film",
-          path: ["title"],
-        });
-      }
-      if (!value.letterboxdUrl) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Letterboxd URL is required when creating a new film",
-          path: ["letterboxdUrl"],
-        });
-      }
-    }
+  .refine((value) => Boolean(value.letterboxdUrl), {
+    message: "Letterboxd link is required",
+    path: ["letterboxdUrl"],
   });
 
 const updateEventSchema = z
   .object({
     title: z.string().min(3).optional(),
-    description: z.string().max(2000).optional(),
     scheduledAt: z.string().datetime().optional(),
-    doorTime: z.string().datetime().optional(),
-    location: z.string().max(255).optional(),
-    heroImage: z.string().url().optional(),
+    location: z
+      .string()
+      .max(255)
+      .optional()
+      .transform((value) => (value?.trim() ? value.trim() : undefined)),
     isPublished: z.boolean().optional(),
     isArchived: z.boolean().optional(),
     featureRequestIds: z.array(z.string().cuid()).optional(),
@@ -111,73 +117,84 @@ export async function PATCH(
 
   const { lineup, featureRequestIds, title, ...rest } = parsed.data;
 
-  const updates: Record<string, unknown> = { ...rest };
-
+  const updates: Record<string, unknown> = {};
   if (title && title !== existing.title) {
     updates.title = title;
     updates.slug = slugify(title);
   }
-
+  if (typeof rest.location !== "undefined") {
+    updates.location = rest.location;
+  }
+  if (typeof rest.isPublished !== "undefined") {
+    updates.isPublished = rest.isPublished;
+  }
+  if (typeof rest.isArchived !== "undefined") {
+    updates.isArchived = rest.isArchived;
+  }
   if (parsed.data.scheduledAt) {
     updates.scheduledAt = new Date(parsed.data.scheduledAt);
   }
 
-  if (parsed.data.doorTime) {
-    updates.doorTime = parsed.data.doorTime
-      ? new Date(parsed.data.doorTime)
-      : null;
-  }
+  let enrichedLineupEntries:
+    | Array<z.infer<typeof lineupItemSchema>>
+    | undefined;
 
-  const lineupEntries = lineup ?? [];
-  const enrichedLineupEntries = await Promise.all(
-    lineupEntries.map(async (entry) => {
-      if (!entry.letterboxdUrl) {
-        return entry;
+  if (lineup) {
+    enrichedLineupEntries = await Promise.all(
+      lineup.map(async (entry) => {
+        const metadata = await fetchLetterboxdMetadata(entry.letterboxdUrl);
+        if (!metadata) {
+          return entry;
+        }
+        return {
+          ...entry,
+          title: entry.title ?? metadata.title,
+          runtimeMinutes: entry.runtimeMinutes ?? metadata.runtimeMinutes,
+          posterImage: entry.posterImage ?? metadata.posterImage,
+          director: entry.director ?? metadata.director,
+          synopsis: entry.synopsis ?? metadata.description,
+        };
+      }),
+    );
+
+    const filmIdsToValidate = Array.from(
+      new Set(
+        enrichedLineupEntries
+          .map((item) => item.filmId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    if (filmIdsToValidate.length > 0) {
+      const existingFilms = await prisma.film.findMany({
+        where: { id: { in: filmIdsToValidate } },
+        select: { id: true },
+      });
+      if (existingFilms.length !== filmIdsToValidate.length) {
+        return NextResponse.json(
+          { error: "One or more selected films could not be found" },
+          { status: 400 },
+        );
       }
-
-      const metadata = await fetchLetterboxdMetadata(entry.letterboxdUrl);
-      if (!metadata) {
-        return entry;
-      }
-
-      return {
-        ...entry,
-        title: entry.title ?? metadata.title,
-        runtimeMinutes: entry.runtimeMinutes ?? metadata.runtimeMinutes,
-        posterImage: entry.posterImage ?? metadata.posterImage,
-        director: entry.director ?? metadata.director,
-        synopsis: entry.synopsis ?? metadata.description,
-      };
-    }),
-  );
-
-  const filmIdsToValidate = Array.from(
-    new Set(
-      enrichedLineupEntries
-        .map((item) => item.filmId)
-        .filter((value): value is string => Boolean(value)),
-    ),
-  );
-
-  if (filmIdsToValidate.length > 0) {
-    const existingFilms = await prisma.film.findMany({
-      where: { id: { in: filmIdsToValidate } },
-      select: { id: true },
-    });
-    if (existingFilms.length !== filmIdsToValidate.length) {
-      return NextResponse.json(
-        { error: "One or more selected films could not be found" },
-        { status: 400 },
-      );
     }
   }
 
   try {
     const updatedEvent = await prisma.$transaction(async (tx) => {
+      const primaryEntry = enrichedLineupEntries?.[0];
+
       const event = await tx.event.update({
         where: { id: existing.id },
         data: {
           ...updates,
+          description:
+            enrichedLineupEntries && primaryEntry
+              ? primaryEntry.synopsis ?? primaryEntry.title ?? existing.description
+              : undefined,
+          heroImage:
+            enrichedLineupEntries && primaryEntry
+              ? primaryEntry.posterImage ?? existing.heroImage
+              : undefined,
           featureRequests:
             featureRequestIds && featureRequestIds.length > 0
               ? {
@@ -189,19 +206,17 @@ export async function PATCH(
         },
       });
 
-      if (lineup) {
+      if (enrichedLineupEntries) {
         await tx.eventFilm.deleteMany({ where: { eventId: event.id } });
-      }
 
-      if (enrichedLineupEntries.length > 0) {
         for (const [index, item] of enrichedLineupEntries.entries()) {
           let filmId = item.filmId;
 
-          if (!filmId && item.letterboxdUrl && item.title) {
+          if (!filmId) {
             const film = await tx.film.upsert({
               where: { letterboxdUrl: item.letterboxdUrl },
               create: {
-                title: item.title,
+                title: item.title ?? `Film ${index + 1}`,
                 letterboxdUrl: item.letterboxdUrl,
                 runtimeMinutes: item.runtimeMinutes ?? undefined,
                 posterImage: item.posterImage,
@@ -209,7 +224,7 @@ export async function PATCH(
                 synopsis: item.synopsis,
               },
               update: {
-                title: item.title,
+                title: item.title ?? undefined,
                 runtimeMinutes: item.runtimeMinutes ?? undefined,
                 posterImage: item.posterImage ?? undefined,
                 director: item.director ?? undefined,
@@ -217,10 +232,6 @@ export async function PATCH(
               },
             });
             filmId = film.id;
-          }
-
-          if (!filmId) {
-            throw new Error("Missing film identifier for lineup entry");
           }
 
           await tx.eventFilm.create({

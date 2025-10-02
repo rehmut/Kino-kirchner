@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { Button } from "@/components/ui/button";
+import { DeleteEventButton } from "./delete-event-button";
 import {
   Card,
   CardContent,
@@ -51,15 +52,13 @@ export default async function AdminEventDetailPage({
             {event.description ?? "No description provided yet."}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
           <Button asChild variant="outline">
             <Link href={`/events/${event.slug}`} target="_blank">
               View public page
             </Link>
           </Button>
-          <Button asChild>
-            <Link href={`/admin/events/${event.slug}/edit`}>Edit event</Link>
-          </Button>
+          <DeleteEventButton slug={event.slug} />
         </div>
       </header>
 
@@ -140,3 +139,4 @@ export default async function AdminEventDetailPage({
     </div>
   );
 }
+

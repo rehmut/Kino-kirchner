@@ -7,7 +7,6 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { X } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -20,7 +19,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type FeatureRequestOption = {
@@ -33,22 +31,13 @@ type FeatureRequestOption = {
 
 type LineupItemInput = {
   filmId?: string;
-  title: string;
   letterboxdUrl: string;
-  runtimeMinutes?: string;
-  posterImage?: string;
-  director?: string;
-  synopsis?: string;
-  note?: string;
 };
 
 type EventFormValues = {
   title: string;
-  description?: string;
   scheduledAt: string;
-  doorTime?: string;
   location?: string;
-  heroImage?: string;
   isPublished: boolean;
   featureRequestIds: string[];
   lineup: LineupItemInput[];
@@ -61,77 +50,40 @@ type EventFormProps = {
   eventSlug?: string;
 };
 
-const lineupFilmSchema = z.object({
-  filmId: z
-    .union([z.string().cuid(), z.literal("")])
-    .optional()
-    .transform((value) => (value ? value : undefined)),
-  title: z
-    .string()
-    .min(1, "Film title is required")
-    .max(200, "Film title is too long"),
-  letterboxdUrl: z
-    .string()
-    .url("Provide the Letterboxd link (https://letterboxd.com/film/...)")
-    .max(300, "URL seems too long"),
-  runtimeMinutes: z
-    .string()
-    .optional()
-    .transform((value) => (value && Number(value) > 0 ? value : "")),
-  posterImage: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() ?? ""),
-  director: z
-    .string()
-    .optional()
-    .transform((value) => value?.trim() ?? ""),
-  synopsis: z
-    .string()
-    .max(2000, "Synopsis too long")
-    .optional()
-    .transform((value) => value?.trim() ?? ""),
-  note: z
-    .string()
-    .max(255, "Note too long")
-    .optional()
-    .transform((value) => value?.trim() ?? ""),
-});
+const lineupFilmSchema = z
+  .object({
+    filmId: z
+      .union([z.string().cuid(), z.literal("")])
+      .optional()
+      .transform((value) => (value ? value : undefined)),
+    letterboxdUrl: z
+      .string()
+      .url("Provide the Letterboxd link (https://letterboxd.com/film/...)")
+      .max(300, "URL seems too long")
+      .transform((value) => value.trim()),
+  })
+  .refine((value) => Boolean(value.letterboxdUrl), {
+    message: "Letterboxd link is required",
+    path: ["letterboxdUrl"],
+  });
 
 const formSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
-  description: z
-    .string()
-    .max(2000, "Description is too long")
-    .optional()
-    .transform((value) => value?.trim() || undefined),
-  scheduledAt: z.string().min(1, "Please pick a screening date"),
-  doorTime: z
-    .string()
-    .optional()
-    .transform((value) => (value?.trim() ? value : undefined)),
+  scheduledAt: z.string().min(1, "Please pick a screening date and time"),
   location: z
     .string()
     .max(255, "Location is too long")
     .optional()
-    .transform((value) => value?.trim() || undefined),
-  heroImage: z
-    .string()
-    .url("Use a valid URL")
-    .optional()
-    .transform((value) => value?.trim() || undefined),
+    .transform((value) => (value?.trim() ? value.trim() : undefined)),
   isPublished: z.boolean().default(false),
   featureRequestIds: z.array(z.string()).default([]),
-  lineup: z.array(lineupFilmSchema).default([]),
+  lineup: z.array(lineupFilmSchema).min(1, "Add at least one film"),
 });
 
 const EMPTY_VALUES: EventFormValues = {
   title: "",
-  description: "",
   scheduledAt: "",
-  doorTime: "",
   location: "",
-  heroImage: "",
   isPublished: false,
   featureRequestIds: [],
   lineup: [],
@@ -159,9 +111,7 @@ export function EventForm({
   const [status, setStatus] = useState<SubmissionState>("idle");
   const [isPending, startTransition] = useTransition();
 
-  const defaults = JSON.parse(
-    JSON.stringify(initialValues ?? EMPTY_VALUES),
-  ) as EventFormValues;
+  const defaults = JSON.parse(JSON.stringify(initialValues ?? EMPTY_VALUES)) as EventFormValues;
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(formSchema),
@@ -188,30 +138,18 @@ export function EventForm({
 
     const lineupPayload = values.lineup.map((film, index) => ({
       filmId: film.filmId,
-      title: film.title.trim(),
       letterboxdUrl: film.letterboxdUrl.trim(),
-      runtimeMinutes:
-        film.runtimeMinutes && Number(film.runtimeMinutes) > 0
-          ? Number(film.runtimeMinutes)
-          : undefined,
-      posterImage: film.posterImage?.trim() || undefined,
-      director: film.director?.trim() || undefined,
-      synopsis: film.synopsis?.trim() || undefined,
-      note: film.note?.trim() || undefined,
       slotOrder: index,
     }));
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       title: values.title.trim(),
-      description: values.description,
       scheduledAt: new Date(values.scheduledAt).toISOString(),
-      doorTime: values.doorTime ? new Date(values.doorTime).toISOString() : undefined,
       location: values.location,
-      heroImage: values.heroImage,
       isPublished: values.isPublished,
       featureRequestIds: values.featureRequestIds,
       lineup: lineupPayload,
-    } as Record<string, unknown>;
+    };
 
     startTransition(async () => {
       let response: Response;
@@ -268,11 +206,8 @@ export function EventForm({
               <FormItem>
                 <FormLabel>Event title</FormLabel>
                 <FormControl>
-                  <Input placeholder="Halloween Marathon" {...field} />
+                  <Input placeholder="Filmfreitag" {...field} />
                 </FormControl>
-                <FormDescription>
-                  Guests will see this as the main headline for the night.
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -280,85 +215,32 @@ export function EventForm({
 
           <FormField
             control={form.control}
-            name="description"
+            name="scheduledAt"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Description</FormLabel>
+                <FormLabel>Screening date & time</FormLabel>
                 <FormControl>
-                  <Textarea
-                    rows={5}
-                    placeholder="Share the vibe, snacks, and any themes for the screening."
-                    {...field}
-                  />
+                  <Input type="datetime-local" {...field} />
                 </FormControl>
+                <FormDescription>Use 24-hour (military) time.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="scheduledAt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Screening date & time</FormLabel>
-                  <FormControl>
-                    <Input type="datetime-local" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="doorTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Doors open</FormLabel>
-                  <FormControl>
-                    <Input type="datetime-local" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Optional. Leave blank if doors open at screening time.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Host apartment, backyard, etc." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="heroImage"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hero image URL</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://..." {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Optional image displayed on event pages.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="location"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Location</FormLabel>
+                <FormControl>
+                  <Input placeholder="Heimkino, Wohnzimmer, etc." {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <section className="space-y-4">
@@ -366,7 +248,7 @@ export function EventForm({
             <div>
               <h3 className="text-lg font-semibold">Film line-up</h3>
               <p className="text-sm text-muted-foreground">
-                Add the films you plan to screen in order. You can edit them later.
+                Paste the Letterboxd link for each film in order.
               </p>
             </div>
             <Button
@@ -375,13 +257,7 @@ export function EventForm({
               onClick={() =>
                 append({
                   filmId: "",
-                  title: "",
                   letterboxdUrl: "",
-                  runtimeMinutes: "",
-                  posterImage: "",
-                  director: "",
-                  synopsis: "",
-                  note: "",
                 })
               }
             >
@@ -391,7 +267,7 @@ export function EventForm({
 
           {fields.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-white/20 bg-muted/20 p-6 text-sm text-muted-foreground">
-              No films added yet. Use the Add film button to start building the line-up.
+              Add at least one film to build the programme.
             </p>
           ) : (
             <div className="space-y-6">
@@ -409,7 +285,7 @@ export function EventForm({
                     <div>
                       <h4 className="text-base font-semibold">Film #{index + 1}</h4>
                       <p className="text-xs text-muted-foreground">
-                        Provide at least the title and Letterboxd link.
+                        Example: https://letterboxd.com/film/in-the-mood-for-love/
                       </p>
                     </div>
                     <Button
@@ -423,99 +299,14 @@ export function EventForm({
                     </Button>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name={`lineup.${index}.title`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Film title *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Invasion of the Body Snatchers" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineup.${index}.letterboxdUrl`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Letterboxd link *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://letterboxd.com/film/..." {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FormField
-                      control={form.control}
-                      name={`lineup.${index}.runtimeMinutes`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Runtime (minutes)</FormLabel>
-                          <FormControl>
-                            <Input type="number" min={1} max={600} placeholder="105" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineup.${index}.director`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Director</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Optional" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineup.${index}.posterImage`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Poster URL</FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://image.tmdb.org/..." {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
                   <FormField
                     control={form.control}
-                    name={`lineup.${index}.synopsis`}
+                    name={`lineup.${index}.letterboxdUrl`}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Synopsis</FormLabel>
+                        <FormLabel>Letterboxd link *</FormLabel>
                         <FormControl>
-                          <Textarea rows={3} placeholder="Optional, helps guests learn more." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`lineup.${index}.note`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Host note</FormLabel>
-                        <FormControl>
-                          <Textarea rows={2} placeholder="Special instructions or why it made the cut." {...field} />
+                          <Input placeholder="https://letterboxd.com/film/..." {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -535,7 +326,7 @@ export function EventForm({
               <div className="space-y-1">
                 <FormLabel>Publish immediately</FormLabel>
                 <FormDescription>
-                  If enabled, guests will see this event as soon as it is created.
+                  When enabled, the event is visible to guests as soon as it is created.
                 </FormDescription>
               </div>
               <FormControl>
@@ -552,7 +343,7 @@ export function EventForm({
             <FormItem>
               <FormLabel>Link feature requests</FormLabel>
               <FormDescription>
-                Attach any fan suggestions you plan to include in this event.
+                Attach any guest requests you plan to include in this screening.
               </FormDescription>
               <div className="mt-4 space-y-3">
                 {featureRequests.length > 0 ? (
@@ -575,14 +366,13 @@ export function EventForm({
                             {request.submitterName ? `${request.submitterName} - ` : ""}
                             {request.submittedEmail}
                           </p>
-                          <Badge variant={checked ? "default" : "outline"}>{request.status}</Badge>
                         </div>
                       </label>
                     );
                   })
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No pending feature requests right now. Guests can still submit new ones from the public page.
+                    No pending feature requests right now.
                   </p>
                 )}
               </div>
@@ -621,57 +411,30 @@ export function EventForm({
 
 export function buildInitialEventValues(event: {
   title: string;
-  description: string | null;
   scheduledAt: Date;
-  doorTime: Date | null;
   location: string | null;
-  heroImage: string | null;
   isPublished: boolean;
   featureRequests: { id: string }[];
   eventFilms: {
     filmId: string;
     slotOrder: number;
-    note: string | null;
     film: {
       id: string;
-      title: string;
       letterboxdUrl: string;
-      runtimeMinutes: number | null;
-      posterImage: string | null;
-      director: string | null;
-      synopsis: string | null;
     };
   }[];
 }): EventFormValues {
   return {
     title: event.title,
-    description: event.description ?? "",
     scheduledAt: toDateTimeLocalString(event.scheduledAt),
-    doorTime: toDateTimeLocalString(event.doorTime),
     location: event.location ?? "",
-    heroImage: event.heroImage ?? "",
     isPublished: event.isPublished,
     featureRequestIds: event.featureRequests.map((request) => request.id),
     lineup: event.eventFilms
       .sort((a, b) => a.slotOrder - b.slotOrder)
       .map((entry) => ({
         filmId: entry.filmId,
-        title: entry.film.title,
         letterboxdUrl: entry.film.letterboxdUrl,
-        runtimeMinutes: entry.film.runtimeMinutes ? String(entry.film.runtimeMinutes) : "",
-        posterImage: entry.film.posterImage ?? "",
-        director: entry.film.director ?? "",
-        synopsis: entry.film.synopsis ?? "",
-        note: entry.note ?? "",
       })),
   };
 }
-
-
-
-
-
-
-
-
-
